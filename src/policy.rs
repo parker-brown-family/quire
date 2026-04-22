@@ -30,7 +30,7 @@ impl Policy {
     pub fn from_file(path: impl AsRef<Path>) -> Result<Self> {
         let path_str = path.as_ref().display().to_string();
         let parsed = parser::parse_file(path)?;
-        // TODO(0.1.0): run parser::validate_examples(&parsed) before return.
+        parser::validate_examples(&parsed.rules, &parsed.pending_validations)?;
         Ok(Policy {
             rules: parsed.rules,
             host_executables: parsed.host_executables,
@@ -41,6 +41,7 @@ impl Policy {
     /// Parse a policy from an in-memory Starlark source string.
     pub fn from_source(identifier: &str, source: &str) -> Result<Self> {
         let parsed = parser::parse_source(identifier, source)?;
+        parser::validate_examples(&parsed.rules, &parsed.pending_validations)?;
         Ok(Policy {
             rules: parsed.rules,
             host_executables: parsed.host_executables,
@@ -221,5 +222,81 @@ prefix_rule(pattern=["git", "push", "--force"], decision="forbidden",
             p.evaluate(&argv(&["git", "push", "origin"])),
             Decision::NoMatch
         );
+    }
+
+    // ---- T3: load-time match / not_match self-validation ------------------
+
+    #[test]
+    fn match_example_that_does_not_match_its_rule_fails_to_load() {
+        // "lsof" does not start with the token "ls", so claiming match=["lsof"]
+        // for a rule patterned on ["ls"] is a lie. The load must reject it.
+        let src = r#"
+prefix_rule(pattern=["ls"], decision="allow",
+            justification="ls is read-only",
+            match=["lsof"])
+"#;
+        let err = Policy::from_source("inline", src).unwrap_err().to_string();
+        assert!(
+            err.contains("match=") && err.contains("lsof"),
+            "error should mention the bad example: {err}"
+        );
+    }
+
+    #[test]
+    fn match_example_that_matches_a_different_rule_fails_to_load() {
+        // `git status` is claimed as a match of the `git` rule, but the
+        // more-specific `git status` rule is declared first and takes it.
+        let src = r#"
+prefix_rule(pattern=["git", "status"], decision="allow",
+            justification="status is read-only")
+prefix_rule(pattern=["git"], decision="prompt",
+            justification="any git command needs review",
+            match=["git status"])
+"#;
+        let err = Policy::from_source("inline", src).unwrap_err().to_string();
+        assert!(
+            err.contains("git status") && err.contains("did not match"),
+            "error should name the example and the mismatch: {err}"
+        );
+    }
+
+    #[test]
+    fn not_match_example_that_does_match_fails_to_load() {
+        // "ls -la" obviously matches pattern=["ls"]; declaring it as
+        // not_match is a lie.
+        let src = r#"
+prefix_rule(pattern=["ls"], decision="allow",
+            justification="ls is read-only",
+            not_match=["ls -la"])
+"#;
+        let err = Policy::from_source("inline", src).unwrap_err().to_string();
+        assert!(
+            err.contains("not_match") && err.contains("ls -la"),
+            "error should name the bad not_match example: {err}"
+        );
+    }
+
+    #[test]
+    fn not_match_example_matching_a_different_rule_is_fine() {
+        // "wget" does not match our rule but might be thought of as "shouldnt
+        // match" — not_match is only about THIS rule, so this loads cleanly.
+        let src = r#"
+prefix_rule(pattern=["ls"], decision="allow",
+            justification="ls is read-only",
+            not_match=["wget"])
+"#;
+        assert!(Policy::from_source("inline", src).is_ok());
+    }
+
+    #[test]
+    fn valid_match_and_not_match_examples_load_cleanly() {
+        let src = r#"
+prefix_rule(pattern=["ls"], decision="allow",
+            justification="ls is read-only",
+            match=["ls", "ls -la", "ls /tmp"],
+            not_match=["lsof", "lsblk"])
+"#;
+        let p = Policy::from_source("inline", src).unwrap();
+        assert_eq!(p.rules().len(), 1);
     }
 }

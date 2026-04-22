@@ -19,6 +19,20 @@ pub enum Error {
     #[error("invalid rule: {0}")]
     InvalidRule(String),
 
+    #[error(
+        "rule `{rule}` claims `match={example:?}` but evaluating that command did not match it (actual: {actual})"
+    )]
+    MatchExampleDidNotMatch {
+        rule: String,
+        example: String,
+        actual: String,
+    },
+
+    #[error(
+        "rule `{rule}` claims `not_match={example:?}` but evaluating that command DID match it"
+    )]
+    NotMatchExampleDidMatch { rule: String, example: String },
+
     #[error("starlark error: {0}")]
     Starlark(StarlarkError),
 

@@ -243,3 +243,61 @@ fn policy_builtins(builder: &mut GlobalsBuilder) {
         Ok(NoneType)
     }
 }
+
+/// Run the `match` / `not_match` self-validation pass for a freshly parsed
+/// policy. This is what makes quire's policy files contain their own
+/// regression test: a rule that lies about what it matches does not load.
+///
+/// Semantics:
+/// - Every `match` example must evaluate to the rule that declared it. If
+///   Policy::evaluate on the example picks a different rule (or no rule),
+///   the load fails with `Error::MatchExampleDidNotMatch`.
+/// - Every `not_match` example must NOT evaluate to the rule that declared
+///   it. It may match a different rule or no rule at all. Otherwise the
+///   load fails with `Error::NotMatchExampleDidMatch`.
+pub fn validate_examples(rules: &[PrefixRule], pending: &[PendingValidation]) -> Result<()> {
+    for pv in pending {
+        let owner = &rules[pv.rule_index];
+        let owner_id = format_rule_id(owner);
+
+        for example in &pv.matches {
+            let actual = first_matching_index(rules, example);
+            match actual {
+                Some(idx) if idx == pv.rule_index => {}
+                Some(idx) => {
+                    return Err(Error::MatchExampleDidNotMatch {
+                        rule: owner_id,
+                        example: example.join(" "),
+                        actual: format!("rule `{}` matched first", format_rule_id(&rules[idx])),
+                    });
+                }
+                None => {
+                    return Err(Error::MatchExampleDidNotMatch {
+                        rule: owner_id,
+                        example: example.join(" "),
+                        actual: "no-match".into(),
+                    });
+                }
+            }
+        }
+
+        for example in &pv.not_matches {
+            let actual = first_matching_index(rules, example);
+            if actual == Some(pv.rule_index) {
+                return Err(Error::NotMatchExampleDidMatch {
+                    rule: owner_id,
+                    example: example.join(" "),
+                });
+            }
+        }
+    }
+    Ok(())
+}
+
+fn first_matching_index(rules: &[PrefixRule], argv: &[String]) -> Option<usize> {
+    rules.iter().position(|r| r.matches(argv))
+}
+
+fn format_rule_id(rule: &PrefixRule) -> String {
+    rule.pattern.join(" ")
+}

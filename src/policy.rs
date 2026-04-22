@@ -66,10 +66,16 @@ impl Policy {
 
     /// Classify a command against this policy.
     ///
-    /// Stub for 0.1.0 T1 — always returns `Prompt`. The real matching
-    /// algorithm lands in the prefix-matcher ticket.
-    pub fn evaluate(&self, _argv: &[String]) -> Decision {
-        Decision::Prompt
+    /// Scans `self.rules()` in source-declaration order and returns the
+    /// `decision` of the first rule whose `pattern` is a token-prefix of
+    /// `argv`. Returns `Decision::NoMatch` if no rule matches — harnesses
+    /// should treat that as "fall back to your own permission prompt."
+    pub fn evaluate(&self, argv: &[String]) -> Decision {
+        self.rules
+            .iter()
+            .find(|r| r.matches(argv))
+            .map(|r| r.decision)
+            .unwrap_or(Decision::NoMatch)
     }
 }
 
@@ -126,5 +132,94 @@ host_executable(name = "git", paths = ["/usr/bin/git", "/opt/homebrew/bin/git"])
     fn invalid_decision_is_rejected() {
         let src = r#"prefix_rule(pattern=["ls"], decision="maybe", justification="no")"#;
         assert!(Policy::from_source("inline", src).is_err());
+    }
+
+    fn argv(tokens: &[&str]) -> Vec<String> {
+        tokens.iter().map(|s| s.to_string()).collect()
+    }
+
+    fn starter() -> Policy {
+        Policy::from_file("examples/starter.policy").unwrap()
+    }
+
+    #[test]
+    fn default_empty_policy_returns_no_match() {
+        let p = Policy::default();
+        assert_eq!(p.evaluate(&argv(&["ls"])), Decision::NoMatch);
+    }
+
+    #[test]
+    fn starter_policy_allows_ls() {
+        assert_eq!(starter().evaluate(&argv(&["ls", "-la"])), Decision::Allow);
+    }
+
+    #[test]
+    fn starter_policy_allows_cat() {
+        assert_eq!(
+            starter().evaluate(&argv(&["cat", "README.md"])),
+            Decision::Allow
+        );
+    }
+
+    #[test]
+    fn starter_policy_prompts_git_push() {
+        assert_eq!(
+            starter().evaluate(&argv(&["git", "push", "origin", "main"])),
+            Decision::Prompt
+        );
+    }
+
+    #[test]
+    fn starter_policy_forbids_rm_rf() {
+        assert_eq!(
+            starter().evaluate(&argv(&["rm", "-rf", "/"])),
+            Decision::Forbidden
+        );
+    }
+
+    #[test]
+    fn starter_policy_no_match_on_unknown() {
+        assert_eq!(
+            starter().evaluate(&argv(&["wget", "http://x"])),
+            Decision::NoMatch
+        );
+    }
+
+    #[test]
+    fn starter_policy_rejects_prefix_lookalike() {
+        // `lsof` starts with "ls" as a string but is a different program;
+        // prefix matching is on whole tokens, not substrings.
+        assert_eq!(starter().evaluate(&argv(&["lsof"])), Decision::NoMatch);
+    }
+
+    #[test]
+    fn first_matching_rule_wins_in_source_order() {
+        let src = r#"
+prefix_rule(pattern=["git"], decision="prompt",
+            justification="any git command needs confirmation")
+prefix_rule(pattern=["git", "status"], decision="allow",
+            justification="status is read-only")
+"#;
+        let p = Policy::from_source("inline", src).unwrap();
+        // Even though ["git", "status"] matches the second rule too, the
+        // first-in-file rule wins.
+        assert_eq!(p.evaluate(&argv(&["git", "status"])), Decision::Prompt);
+    }
+
+    #[test]
+    fn longer_patterns_still_match_their_argv() {
+        let src = r#"
+prefix_rule(pattern=["git", "push", "--force"], decision="forbidden",
+            justification="never force-push")
+"#;
+        let p = Policy::from_source("inline", src).unwrap();
+        assert_eq!(
+            p.evaluate(&argv(&["git", "push", "--force", "origin"])),
+            Decision::Forbidden
+        );
+        assert_eq!(
+            p.evaluate(&argv(&["git", "push", "origin"])),
+            Decision::NoMatch
+        );
     }
 }

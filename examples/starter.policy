@@ -1,0 +1,54 @@
+# Starter quire policy — copy this to ~/.config/quire/policy and edit.
+#
+# Semantics:
+#   - Each prefix_rule matches commands whose argv starts with `pattern`.
+#   - decision is one of: "allow", "prompt", "forbidden".
+#   - match[]     — commands that SHOULD match this rule (validated at load).
+#   - not_match[] — commands that should NOT match this rule (validated at load).
+# If no rule matches, quire exits with code 30 ("no-match"), which your harness
+# should treat as "fall back to the harness's own permission prompt."
+
+host_executable(
+    name = "git",
+    paths = ["/usr/bin/git", "/usr/local/bin/git", "/opt/homebrew/bin/git"],
+)
+
+prefix_rule(
+    pattern = ["ls"],
+    decision = "allow",
+    justification = "ls is read-only and cannot mutate the filesystem.",
+    match = ["ls", "ls -la", "ls /tmp"],
+    not_match = ["lsof", "lsblk"],
+)
+
+prefix_rule(
+    pattern = ["cat"],
+    decision = "allow",
+    justification = "cat is read-only.",
+    match = ["cat README.md", "cat /etc/hosts"],
+    not_match = ["catalog", "catnap"],
+)
+
+prefix_rule(
+    pattern = ["git", "status"],
+    decision = "allow",
+    justification = "git status is read-only.",
+    match = ["git status", "git status --short"],
+    not_match = ["git status-reset", "git stash"],
+)
+
+prefix_rule(
+    pattern = ["git", "push"],
+    decision = "prompt",
+    justification = "git push mutates the remote — always ask.",
+    match = ["git push", "git push origin main"],
+    not_match = ["git push-option"],
+)
+
+prefix_rule(
+    pattern = ["rm", "-rf"],
+    decision = "forbidden",
+    justification = "rm -rf has no safe default — reject and let the human reconsider.",
+    match = ["rm -rf /", "rm -rf node_modules", "rm -rf ."],
+    not_match = ["rm file.txt", "rm -i thing"],
+)

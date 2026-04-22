@@ -1,0 +1,32 @@
+[package]
+name = "quire"
+version = "0.0.1"
+edition = "2021"
+rust-version = "1.80"
+description = "Starlark-policy CLI for AI coding agents — stop approving `ls` forever."
+license = "MIT"
+repository = "https://github.com/parker-brown-family/quire"
+homepage = "https://github.com/parker-brown-family/quire"
+readme = "README.md"
+keywords = ["agent", "policy", "starlark", "cli", "ai"]
+categories = ["command-line-utilities", "development-tools"]
+authors = ["Parker Brown Family Sports"]
+
+[lib]
+name = "quire"
+path = "src/lib.rs"
+
+[[bin]]
+name = "quire"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = "symbols"

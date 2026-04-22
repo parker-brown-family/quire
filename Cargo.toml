@@ -1,6 +1,6 @@
 [package]
 name = "quire"
-version = "0.0.1"
+version = "0.1.0"
 edition = "2021"
 rust-version = "1.80"
 description = "Starlark-policy CLI for AI coding agents — stop approving `ls` forever."

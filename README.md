@@ -17,11 +17,6 @@ $ echo $?
 One policy file. One CLI. Four exit codes. Wire it into your agent harness
 once and your AI stops asking permission for every `grep`.
 
-> **Status: 0.0.1 scaffold.** The repo ships a typed library API, a working
-> CLI surface, a starter policy, and CI. The Starlark evaluator is stubbed —
-> `quire check` currently returns `prompt` for every input. 0.1.0 is the
-> first useful release. See [CHANGELOG.md](./CHANGELOG.md).
-
 ---
 
 ## Table of Contents

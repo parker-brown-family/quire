@@ -1,6 +1,10 @@
 //! The four possible outcomes of evaluating a command against a policy.
 
+use std::fmt;
+
 use serde::{Deserialize, Serialize};
+
+use crate::error::{Error, Result};
 
 /// Outcome of matching a command argv against a quire policy.
 ///
@@ -41,6 +45,24 @@ impl Decision {
             Decision::NoMatch => "no-match",
         }
     }
+
+    /// Parse a policy-source decision string. Only the three rule-level
+    /// variants (`allow`, `prompt`, `forbidden`) are valid here — `no-match`
+    /// is an evaluator outcome, not something a rule can declare.
+    pub fn parse(raw: &str) -> Result<Self> {
+        match raw {
+            "allow" => Ok(Decision::Allow),
+            "prompt" => Ok(Decision::Prompt),
+            "forbidden" => Ok(Decision::Forbidden),
+            other => Err(Error::InvalidDecision(other.to_string())),
+        }
+    }
+}
+
+impl fmt::Display for Decision {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
 }
 
 #[cfg(test)]
@@ -67,5 +89,19 @@ mod tests {
         assert_eq!(Decision::Prompt.as_str(), "prompt");
         assert_eq!(Decision::Forbidden.as_str(), "forbidden");
         assert_eq!(Decision::NoMatch.as_str(), "no-match");
+    }
+
+    #[test]
+    fn parse_accepts_three_rule_variants() {
+        assert_eq!(Decision::parse("allow").unwrap(), Decision::Allow);
+        assert_eq!(Decision::parse("prompt").unwrap(), Decision::Prompt);
+        assert_eq!(Decision::parse("forbidden").unwrap(), Decision::Forbidden);
+    }
+
+    #[test]
+    fn parse_rejects_no_match_and_garbage() {
+        assert!(Decision::parse("no-match").is_err());
+        assert!(Decision::parse("allowed").is_err());
+        assert!(Decision::parse("").is_err());
     }
 }

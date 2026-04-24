@@ -259,9 +259,9 @@ Homebrew, crates.io, or grab a release binary from
 [Releases](https://github.com/parker-brown-family/quire/releases).
 
 ```sh
-brew install parker-brown-family/tap/quire   # (coming in 0.1.0)
+brew install parker-brown-family/tap/quire
 # or
-cargo install quire                            # (coming in 0.1.0)
+cargo install quire
 ```
 
 > While the 0.0.1 scaffold is out: `git clone` this repo and

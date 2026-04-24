@@ -264,10 +264,6 @@ brew install parker-brown-family/tap/quire
 cargo install quire
 ```
 
-> While the 0.0.1 scaffold is out: `git clone` this repo and
-> `cargo install --path .`. The CLI works, it just always returns `prompt`
-> until 0.1.0 ships the evaluator.
-
 ### 2. Copy the starter policy
 
 ```sh
@@ -348,7 +344,7 @@ evaluation.
 For a command with argv `[a0, a1, ..., aN]`:
 
 1. Resolve `a0` to its basename and look up the matching `host_executable`.
-   Failing that, use `a0` as-is.
+   Failing that, use `a0` as-is. Note that `host_executable` declarations are parsed and validated but not yet consulted during evaluation — path-based resolution is planned for 0.2.
 2. For each `prefix_rule` in file order, check whether `pattern[i] == argv[i]`
    for all `i` in `0..len(pattern)`. First match wins.
 3. If no rule matches, return `no-match`.
@@ -375,7 +371,7 @@ quire check --policy <FILE> [--json] -- <CMD> [ARGS...]
 
 ### Library API (Rust)
 
-See [docs.rs/quire](https://docs.rs/quire) once 0.1.0 ships. Summary:
+See [docs.rs/quire](https://docs.rs/quire). Summary:
 
 ```rust
 pub enum Decision { Allow, Prompt, Forbidden, NoMatch }
@@ -399,10 +395,6 @@ impl Policy {
 - `src/rule.rs`      — `PrefixRule`, `HostExecutable`, `Rule` structs.
 - `src/policy.rs`    — `Policy::from_file`, `Policy::evaluate`.
 - `src/main.rs`      — clap CLI; thin wrapper over the library.
-
-The Starlark evaluator will live in `src/starlark.rs` once it lands, kept
-behind a feature flag so integrators who only need the types can skip the
-dependency.
 
 ### Contributing
 
